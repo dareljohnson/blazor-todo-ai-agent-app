@@ -338,7 +338,22 @@
         // DEBUG: Log input
         Console.WriteLine($"[FormatReport] Input length: {report.Length}, first 100 chars: {report.Substring(0, Math.Min(100, report.Length))}");
 
-        // Step 1: Extract and protect ALL math expressions first (including multi-line)
+        // Step 1: Extract and protect code blocks first
+        var codePlaceholders = new System.Collections.Generic.List<string>();
+        var codeIndex = 0;
+        var codeBlockPattern = @"```(\w+)?\s*\n([\s\S]*?)```";
+        
+        report = System.Text.RegularExpressions.Regex.Replace(report, codeBlockPattern, match => {
+            var placeholder = $"___CODE_{codeIndex}___";
+            var language = match.Groups[1].Value;
+            var code = match.Groups[2].Value;
+            var formattedCode = FormatCodeBlock(code, language);
+            codePlaceholders.Add(formattedCode);
+            codeIndex++;
+            return placeholder;
+        }, System.Text.RegularExpressions.RegexOptions.Singleline);
+
+        // Step 2: Extract and protect ALL math expressions (including multi-line)
         // Support both LaTeX \(...\), \[...\] and Markdown $...$, $$...$$ syntax
         // Make inline math $ pattern restrictive: no newlines, no commas (currency uses commas)
         var mathPlaceholders = new System.Collections.Generic.List<string>();
@@ -366,7 +381,7 @@
             return placeholder;
         }, System.Text.RegularExpressions.RegexOptions.Singleline);
 
-        // Step 2: Process lines for structure
+        // Step 3: Process lines for structure
         var lines = report.Split('\n', StringSplitOptions.RemoveEmptyEntries);
         var formatted = new System.Text.StringBuilder();
         var inList = false;
@@ -404,13 +419,65 @@
 
         var result = formatted.ToString();
         
-        // Step 3: Restore math expressions at the end
+        // Step 4: Restore code blocks
+        for (int i = 0; i < codePlaceholders.Count; i++)
+        {
+            result = result.Replace($"___CODE_{i}___", codePlaceholders[i]);
+        }
+        
+        // Step 5: Restore math expressions at the end
         for (int i = 0; i < mathPlaceholders.Count; i++)
         {
             result = result.Replace($"___MATH_{i}___", mathPlaceholders[i]);
         }
 
         return result;
+    }
+
+    private string FormatCodeBlock(string code, string language)
+    {
+        // HTML encode the code content
+        var encodedCode = System.Net.WebUtility.HtmlEncode(code);
+        
+        // Build the code block with language label
+        var languageLabel = string.IsNullOrEmpty(language) ? "code" : language.ToLowerInvariant();
+        var languageDisplay = GetLanguageDisplayName(languageLabel);
+        
+        return $@"<div class='code-block' style='margin: 1rem 0; border-radius: 0.5rem; background: #1e1e1e; overflow: hidden;'>
+            <div class='code-header' style='background: #2d2d2d; padding: 0.5rem 1rem; color: #d4d4d4; font-size: 0.875rem; font-weight: 500; display: flex; justify-content: space-between; align-items: center;'>
+                <span>{languageDisplay}</span>
+            </div>
+            <pre style='margin: 0; padding: 1rem; overflow-x: auto;'><code class='language-{languageLabel}' style='color: #d4d4d4; font-family: ""Consolas"", ""Monaco"", ""Courier New"", monospace; font-size: 0.875rem; line-height: 1.5;'>{encodedCode}</code></pre>
+        </div>";
+    }
+
+    private string GetLanguageDisplayName(string language)
+    {
+        return language.ToLowerInvariant() switch
+        {
+            "javascript" or "js" => "JavaScript",
+            "typescript" or "ts" => "TypeScript",
+            "csharp" or "cs" => "C#",
+            "python" or "py" => "Python",
+            "java" => "Java",
+            "html" => "HTML",
+            "css" => "CSS",
+            "json" => "JSON",
+            "xml" => "XML",
+            "sql" => "SQL",
+            "bash" or "sh" => "Bash",
+            "powershell" or "ps1" => "PowerShell",
+            "markdown" or "md" => "Markdown",
+            "yaml" or "yml" => "YAML",
+            "dockerfile" => "Dockerfile",
+            "go" => "Go",
+            "rust" => "Rust",
+            "ruby" or "rb" => "Ruby",
+            "php" => "PHP",
+            "swift" => "Swift",
+            "kotlin" or "kt" => "Kotlin",
+            _ => language.ToUpperInvariant()
+        };
     }
 
     private string FormatInlineMarkdownWithoutMath(string text)
@@ -435,8 +502,23 @@
     {
         if (string.IsNullOrEmpty(text))
             return string.Empty;
+        
+        // Step 1: Extract and protect code blocks first
+        var codePlaceholders = new System.Collections.Generic.List<string>();
+        var codeIndex = 0;
+        var codeBlockPattern = @"```(\w+)?\s*\n([\s\S]*?)```";
+        
+        text = System.Text.RegularExpressions.Regex.Replace(text, codeBlockPattern, match => {
+            var placeholder = $"___CODE_{codeIndex}___";
+            var language = match.Groups[1].Value;
+            var code = match.Groups[2].Value;
+            var formattedCode = FormatCodeBlock(code, language);
+            codePlaceholders.Add(formattedCode);
+            codeIndex++;
+            return placeholder;
+        }, System.Text.RegularExpressions.RegexOptions.Singleline);
             
-        // Step 1: Protect math expressions (support LaTeX and Markdown syntax)
+        // Step 2: Protect math expressions (support LaTeX and Markdown syntax)
         // Use Singleline option for display math only, inline math must not span lines or contain commas
         var mathPlaceholders = new System.Collections.Generic.List<string>();
         // Display math can be multi-line, inline math cannot contain newlines or commas (currency indicator)
@@ -460,17 +542,23 @@
             return placeholder;
         }, System.Text.RegularExpressions.RegexOptions.Singleline);
         
-        // Step 2: HTML encode everything (including placeholders)
+        // Step 3: HTML encode everything (including placeholders)
         text = System.Net.WebUtility.HtmlEncode(text);
         
-        // Step 3: Apply markdown formatting on encoded text
+        // Step 4: Apply markdown formatting on encoded text
         // Bold **text**
         text = System.Text.RegularExpressions.Regex.Replace(text, @"\*\*(.+?)\*\*", "<strong>$1</strong>");
         
         // Inline code `code`
         text = System.Text.RegularExpressions.Regex.Replace(text, @"`(.+?)`", "<code style='background: #f3f4f6; padding: 0.125rem 0.375rem; border-radius: 0.25rem; font-family: monospace;'>$1</code>");
         
-        // Step 4: Restore math expressions (unencoded for KaTeX)
+        // Step 5: Restore code blocks
+        for (int i = 0; i < codePlaceholders.Count; i++)
+        {
+            text = text.Replace($"___CODE_{i}___", codePlaceholders[i]);
+        }
+        
+        // Step 6: Restore math expressions (unencoded for KaTeX)
         for (int i = 0; i < mathPlaceholders.Count; i++)
         {
             text = text.Replace($"___MATH_{i}___", mathPlaceholders[i]);
