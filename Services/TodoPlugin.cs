@@ -11,10 +11,12 @@ namespace BlazorAiAgentTodo.Services;
 public class TodoPlugin
 {
     private readonly ITodoService _todoService;
+    private readonly IImageService _imageService;
 
-    public TodoPlugin(ITodoService todoService)
+    public TodoPlugin(ITodoService todoService, IImageService imageService)
     {
         _todoService = todoService;
+        _imageService = imageService;
     }
 
     /// <summary>
@@ -58,6 +60,26 @@ public class TodoPlugin
             return $"Error: {ex.Message}";
         }
     }
+
+    /// <summary>
+    /// Generates an image using DALL-E based on a text description.
+    /// </summary>
+    /// <param name="request">The request containing the image prompt</param>
+    /// <returns>Confirmation message with image data URL</returns>
+    [Description("Generates an image using DALL-E based on a text description")]
+    public async Task<string> GenerateImageJson(
+        [Description("Request object containing the image prompt")] GenerateImageRequest request)
+    {
+        try
+        {
+            var imageDataUrl = await _imageService.GenerateImageAsync(request.Prompt);
+            return $"🎨 Generated image: {request.Prompt}\n[IMAGE:{imageDataUrl}]";
+        }
+        catch (Exception ex)
+        {
+            return $"Error generating image: {ex.Message}";
+        }
+    }
 }
 
 /// <summary>
@@ -82,4 +104,14 @@ public record MarkCompleteRequest
     [Description("Notes describing how the task was completed")]
     [JsonPropertyName("completionNotes")]
     public required string CompletionNotes { get; init; }
+}
+
+/// <summary>
+/// Request model for generating images
+/// </summary>
+public record GenerateImageRequest
+{
+    [Description("Detailed description of the image to generate")]
+    [JsonPropertyName("prompt")]
+    public required string Prompt { get; init; }
 }

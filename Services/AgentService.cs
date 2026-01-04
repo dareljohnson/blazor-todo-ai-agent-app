@@ -1,5 +1,6 @@
 using OpenAI;
 using OpenAI.Chat;
+using OpenAI.Images;
 using System.ClientModel;
 using System.Text.Json;
 using BlazorAiAgentTodo.Services.Interfaces;
@@ -12,6 +13,8 @@ public class AgentService : IAgentService
     private readonly IChatService _chatService;
     private readonly IConfiguration _configuration;
     private readonly ChatClient _chatClient;
+    private readonly ImageClient _imageClient;
+    private readonly IImageService _imageService;
     private readonly List<ChatMessage> _conversationHistory = new();
 
     public AgentService(
@@ -19,9 +22,9 @@ public class AgentService : IAgentService
         IChatService chatService,
         IConfiguration configuration)
     {
-        _todoService = todoService;
-        _chatService = chatService;
-        _configuration = configuration;
+        _todoService = todoService ?? throw new ArgumentNullException(nameof(todoService));
+        _chatService = chatService ?? throw new ArgumentNullException(nameof(chatService));
+        _configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
 
         var apiKey = _configuration["OpenAI:ApiKey"] 
             ?? throw new InvalidOperationException("OpenAI API key not configured");
@@ -29,6 +32,8 @@ public class AgentService : IAgentService
         var openAiClient = new OpenAIClient(new ApiKeyCredential(apiKey));
         
         _chatClient = openAiClient.GetChatClient("gpt-4o");
+        _imageClient = openAiClient.GetImageClient("dall-e-3");
+        _imageService = new ImageService(_imageClient, new Logger<ImageService>(new LoggerFactory()));
     }
 
     public async Task<string> ProcessPromptAsync(
@@ -36,6 +41,14 @@ public class AgentService : IAgentService
         Action<string>? onUpdate = null,
         CancellationToken cancellationToken = default)
     {
+        if (string.IsNullOrWhiteSpace(prompt))
+            throw new ArgumentException("Prompt cannot be empty.", nameof(prompt));
+
+        if (prompt.Length > 10000)
+            throw new ArgumentException("Prompt exceeds maximum length of 10,000 characters.", nameof(prompt));
+
+        cancellationToken.ThrowIfCancellationRequested();
+
         try
         {
             // Define function tools for OpenAI
@@ -78,9 +91,34 @@ public class AgentService : IAgentService
                 """)
             );
 
-            var tools = new List<ChatTool> { createTodosTool, markCompleteTool };
+            var generateImageTool = ChatTool.CreateFunctionTool(
+                functionName: "GenerateImageJson",
+                functionDescription: "Generates an image using DALL-E based on a text description",
+                functionParameters: BinaryData.FromString("""
+                {
+                    "type": "object",
+                    "properties": {
+                        "prompt": {
+                            "type": "string",
+                            "description": "Detailed description of the image to generate"
+                        }
+                    },
+                    "required": ["prompt"]
+                }
+                """)
+            );
 
-            // Add system message
+            var tools = new List<ChatTool> { createTodosTool, markCompleteTool, generateImageTool };
+
+            // Clear history from previous request (keep only system message for new request)
+            if (_conversationHistory.Count > 1)
+            {
+                var systemMsg = _conversationHistory[0];
+                _conversationHistory.Clear();
+                _conversationHistory.Add(systemMsg);
+            }
+
+            // Add system message on first use
             if (_conversationHistory.Count == 0)
             {
                 _conversationHistory.Add(ChatMessage.CreateSystemMessage(
@@ -99,6 +137,7 @@ REQUIRED TASK STRUCTURE (minimum 3 tasks):
 AVAILABLE TOOLS:
 - CreateToDosJson: Creates todos from task descriptions array
 - MarkCompleteJson: Marks a todo complete (use zero-based index: first todo is index 0)
+- GenerateImageJson: Generates an image using DALL-E (use when user requests images, visualizations, or creative art)
 
 EXAMPLES:
 User: ""Calculate 5 + 3""
@@ -107,6 +146,13 @@ User: ""Calculate 5 + 3""
 → MarkCompleteJson index 1: ""Verified: 8 is correct, no errors found""
 → MarkCompleteJson index 2: ""Summary prepared with result""
 → Summary: ""The sum of 5 and 3 is **8**""
+
+User: ""Generate an image of a sunset over mountains""
+→ CreateToDosJson with: [""Generate sunset mountain image"", ""Verify image generation"", ""Prepare final summary""]
+→ MarkCompleteJson index 0: [Call GenerateImageJson with prompt] ""Generated image successfully""
+→ MarkCompleteJson index 1: ""Verified: Image generated and ready for display""
+→ MarkCompleteJson index 2: ""Summary prepared""
+→ Summary: ""I've created a beautiful sunset over mountains image for you!""
 
 User: ""Solve $x^2 - 5x + 6 = 0$""
 → CreateToDosJson with: [""Apply quadratic formula to solve equation"", ""Verify both solutions"", ""Prepare final summary""]
@@ -186,7 +232,7 @@ CRITICAL RULES:
 
     private async Task<string> ExecuteToolCallAsync(ChatToolCall toolCall, CancellationToken cancellationToken)
     {
-        var plugin = new TodoPlugin(_todoService);
+        var plugin = new TodoPlugin(_todoService, _imageService);
         var arguments = toolCall.FunctionArguments;
 
         switch (toolCall.FunctionName)
@@ -198,6 +244,10 @@ CRITICAL RULES:
             case "MarkCompleteJson":
                 var markRequest = JsonSerializer.Deserialize<MarkCompleteRequest>(arguments);
                 return await plugin.MarkCompleteJson(markRequest!);
+
+            case "GenerateImageJson":
+                var imageRequest = JsonSerializer.Deserialize<GenerateImageRequest>(arguments);
+                return await plugin.GenerateImageJson(imageRequest!);
 
             default:
                 return $"Unknown tool: {toolCall.FunctionName}";

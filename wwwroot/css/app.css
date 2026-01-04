@@ -391,6 +391,23 @@ body {
     margin-top: 0.5rem;
 }
 
+/* Generated Images */
+.generated-image {
+    margin-top: 1rem;
+    margin-bottom: 0.5rem;
+    border-radius: 0.5rem;
+    overflow: hidden;
+    box-shadow: var(--shadow-md);
+}
+
+.generated-image img {
+    width: 100%;
+    max-width: 512px;
+    height: auto;
+    display: block;
+    border-radius: 0.5rem;
+}
+
 /* Chat Input */
 .chat-input-area {
     display: flex;

@@ -100,6 +100,8 @@
                         @foreach (var message in Messages)
                         {
                             var lowerRole = message.Role.ToString().ToLowerInvariant();
+                            var (text, imageUrl) = ExtractImage(message.Content);
+                            
                             <div class="chat-message @lowerRole">
                                 <div class="message-avatar">
                                     @(lowerRole == "user" ? "👤" : "🤖")
@@ -109,13 +111,19 @@
                                     <div class="message-text math-content">
                                         @if (lowerRole == "assistant")
                                         {
-                                            @((MarkupString)FormatReport(message.Content))
+                                            @((MarkupString)FormatReport(text))
                                         }
                                         else
                                         {
-                                            <span>@message.Content</span>
+                                            <span>@text</span>
                                         }
                                     </div>
+                                    @if (!string.IsNullOrEmpty(imageUrl))
+                                    {
+                                        <div class="generated-image">
+                                            <img src="@imageUrl" alt="AI Generated Image" />
+                                        </div>
+                                    }
                                     <div class="message-timestamp">@message.Timestamp.ToString("HH:mm:ss")</div>
                                 </div>
                             </div>
@@ -178,8 +186,16 @@
             return;
 
         IsProcessing = true;
-        var userPrompt = CurrentPrompt;
+        var userPrompt = CurrentPrompt.Trim();
         CurrentPrompt = string.Empty;
+
+        // Validate prompt length
+        if (userPrompt.Length > 5000)
+        {
+            await ShowErrorNotification("Prompt is too long. Maximum 5,000 characters.");
+            IsProcessing = false;
+            return;
+        }
 
         try
         {
@@ -237,17 +253,41 @@
                 // Ignore JS interop errors
             }
         }
+        catch (OperationCanceledException)
+        {
+            await ShowErrorNotification("Request was cancelled.");
+        }
+        catch (ArgumentException ex)
+        {
+            await ShowErrorNotification($"Invalid input: {ex.Message}");
+        }
+        catch (HttpRequestException ex)
+        {
+            await ShowErrorNotification($"Network error: {ex.Message}");
+        }
+        catch (InvalidOperationException ex)
+        {
+            await ShowErrorNotification($"Configuration error: {ex.Message}");
+        }
         catch (Exception ex)
         {
-            var errorMessage = ChatMessageFactory.CreateAssistant($"Error: {ex.Message}");
-            Messages.Add(errorMessage);
-            await ChatService.AddMessageAsync(errorMessage);
+            await ShowErrorNotification($"Unexpected error: {ex.Message}");
+            // In production, log this to a proper logging system
+            Console.Error.WriteLine($"Unhandled exception in HandleSendMessage: {ex}");
         }
         finally
         {
             IsProcessing = false;
             StateHasChanged();
         }
+    }
+
+    private async Task ShowErrorNotification(string message)
+    {
+        var errorMessage = ChatMessageFactory.CreateAssistant($"❌ **Error**: {message}");
+        Messages.Add(errorMessage);
+        await ChatService.AddMessageAsync(errorMessage);
+        StateHasChanged();
     }
 
     private async Task HandleNewChat()
@@ -345,5 +385,24 @@
         }
         
         return text;
+    }
+
+    private (string text, string imageUrl) ExtractImage(string content)
+    {
+        if (string.IsNullOrEmpty(content))
+            return (string.Empty, string.Empty);
+
+        // Look for [IMAGE:data:image/png;base64,...] pattern
+        var imagePattern = @"\[IMAGE:(data:image/[^]]+)\]";
+        var match = System.Text.RegularExpressions.Regex.Match(content, imagePattern);
+        
+        if (match.Success)
+        {
+            var imageUrl = match.Groups[1].Value;
+            var textWithoutImage = System.Text.RegularExpressions.Regex.Replace(content, imagePattern, "").Trim();
+            return (textWithoutImage, imageUrl);
+        }
+        
+        return (content, string.Empty);
     }
 }

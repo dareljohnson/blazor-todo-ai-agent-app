@@ -202,4 +202,86 @@ This solves equations of the form $ax^2 + bx + c = 0$.";
 
         return formatted.ToString();
     }
+
+    [Theory]
+    [InlineData("Nested **bold `code`** text", "<strong>", "<code")]
+    [InlineData("Multiple $x = 5$ and $y = 10$ in one line", "$x = 5$", "$y = 10$")]
+    public void FormatInlineMarkdown_ShouldHandleMultipleExpressionsInOneLine(string input, params string[] expectedParts)
+    {
+        // Act
+        var result = FormatInlineMarkdown(input);
+        
+        // Assert
+        foreach (var part in expectedParts)
+        {
+            result.Should().Contain(part);
+        }
+    }
+
+    [Fact]
+    public void FormatReport_ShouldHandleEmptyInput()
+    {
+        // Act
+        var result = FormatReport(string.Empty);
+        
+        // Assert
+        result.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void FormatReport_ShouldHandleNullInput()
+    {
+        // Act
+        var result = FormatReport(null!);
+        
+        // Assert
+        result.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void FormatInlineMarkdown_ShouldHandleOnlyWhitespace()
+    {
+        // Act
+        var result = FormatInlineMarkdown("   ");
+        
+        // Assert
+        result.Should().NotBeNullOrEmpty();
+    }
+
+    [Fact]
+    public void FormatInlineMarkdown_ShouldPreserveMultipleConsecutiveMath()
+    {
+        // Arrange
+        var input = "First $a = 1$ then $b = 2$ and finally $c = 3$";
+        
+        // Act
+        var result = FormatInlineMarkdown(input);
+        
+        // Assert
+        result.Should().Contain("$a = 1$");
+        result.Should().Contain("$b = 2$");
+        result.Should().Contain("$c = 3$");
+    }
+
+    [Fact]
+    public void FormatReport_ShouldHandleComplexNestedMarkdown()
+    {
+        // Arrange
+        var input = @"Results:
+1. First: **bold** with $x = 5$
+2. Second: `code` with $y = 10$
+3. Third: Mixed **bold `code`** and $z = 15$";
+        
+        // Act
+        var result = FormatReport(input);
+        
+        // Assert
+        result.Should().Contain("<ol");
+        result.Should().Contain("<li");
+        result.Should().Contain("<strong>");
+        result.Should().Contain("<code");
+        result.Should().Contain("$x = 5$");
+        result.Should().Contain("$y = 10$");
+        result.Should().Contain("$z = 15$");
+    }
 }

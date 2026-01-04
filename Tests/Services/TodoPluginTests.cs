@@ -10,12 +10,14 @@ namespace BlazorAiAgentTodo.Tests.Services;
 public class TodoPluginTests
 {
     private readonly Mock<ITodoService> _mockTodoService;
+    private readonly Mock<IImageService> _mockImageService;
     private readonly TodoPlugin _plugin;
 
     public TodoPluginTests()
     {
         _mockTodoService = new Mock<ITodoService>();
-        _plugin = new TodoPlugin(_mockTodoService.Object);
+        _mockImageService = new Mock<IImageService>();
+        _plugin = new TodoPlugin(_mockTodoService.Object, _mockImageService.Object);
     }
 
     [Fact]
