@@ -33,29 +33,57 @@
     <script src="_content/Radzen.Blazor/Radzen.Blazor.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
+    <script src="js/clipboard.js"></script>
     <script>
         window.renderMath = function() {
-            setTimeout(function() {
-                // Find all elements with math content
-                var mathElements = document.querySelectorAll('.math-content');
-                mathElements.forEach(function(element) {
-                    renderMathInElement(element, {
-                        delimiters: [
-                            {left: '$$', right: '$$', display: true},
-                            {left: '$', right: '$', display: false}
-                        ],
-                        throwOnError: false,
-                        trust: true,
-                        strict: false
-                    });
-                });
-            }, 100);
+            // Use requestAnimationFrame to ensure DOM is ready
+            requestAnimationFrame(function() {
+                setTimeout(function() {
+                    try {
+                        // Find all elements with math content
+                        var mathElements = document.querySelectorAll('.math-content');
+                        if (mathElements.length === 0) {
+                            console.log('No .math-content elements found');
+                            return;
+                        }
+                        
+                        mathElements.forEach(function(element) {
+                            // Skip if already processed
+                            if (element.classList.contains('katex-rendered')) {
+                                return;
+                            }
+                            
+                            renderMathInElement(element, {
+                                delimiters: [
+                                    {left: '$$', right: '$$', display: true},
+                                    {left: '$', right: '$', display: false}
+                                ],
+                                throwOnError: false,
+                                trust: true,
+                                strict: false,
+                                ignoredTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code']
+                            });
+                            
+                            element.classList.add('katex-rendered');
+                        });
+                        
+                        console.log('KaTeX rendering complete for', mathElements.length, 'elements');
+                    } catch (error) {
+                        console.error('Error rendering math:', error);
+                    }
+                }, 100);
+            });
         };
         
         // Auto-render on page load
         document.addEventListener('DOMContentLoaded', function() {
             window.renderMath();
         });
+        
+        // Also render when Blazor reconnects
+        Blazor.defaultReconnectionHandler._reconnectCallback = function() {
+            setTimeout(window.renderMath, 500);
+        };
     </script>
 
 </body>

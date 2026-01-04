@@ -198,6 +198,39 @@ body {
     margin-bottom: 0.5rem;
 }
 
+.todo-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.copy-button,
+.message-copy-button {
+    background: transparent;
+    border: 1px solid var(--border-color);
+    border-radius: 0.375rem;
+    padding: 0.25rem 0.5rem;
+    font-size: 1rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    color: var(--text-secondary);
+    opacity: 0.7;
+}
+
+.copy-button:hover,
+.message-copy-button:hover {
+    background: var(--bg-tertiary);
+    border-color: var(--primary-color);
+    color: var(--primary-color);
+    opacity: 1;
+    transform: translateY(-1px);
+}
+
+.copy-button:active,
+.message-copy-button:active {
+    transform: translateY(0);
+}
+
 .todo-description {
     flex: 1;
     font-weight: 500;
@@ -369,11 +402,17 @@ body {
     border: none;
 }
 
+.message-header-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.25rem;
+}
+
 .message-role {
     font-size: 0.75rem;
     font-weight: 600;
     text-transform: uppercase;
-    margin-bottom: 0.25rem;
     letter-spacing: 0.5px;
 }
 

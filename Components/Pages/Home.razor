@@ -36,9 +36,14 @@
                         <div class="todo-item @(todo.IsActive ? "active" : "") @(todo.IsCompleted ? "completed" : "")">
                             <div class="todo-header">
                                 <div class="todo-description math-content">@((MarkupString)FormatInlineMarkdown(todo.Description))</div>
-                                <span class="status-badge @(todo.IsCompleted ? "completed" : todo.IsActive ? "active" : "pending")">
-                                    @(todo.IsCompleted ? "✓ Done" : todo.IsActive ? "⚙ Active" : "○ Pending")
-                                </span>
+                                <div class="todo-header-actions">
+                                    <button class="copy-button" @onclick="() => CopyTodoToClipboard(todo)" title="Copy to clipboard">
+                                        📋
+                                    </button>
+                                    <span class="status-badge @(todo.IsCompleted ? "completed" : todo.IsActive ? "active" : "pending")">
+                                        @(todo.IsCompleted ? "✓ Done" : todo.IsActive ? "⚙ Active" : "○ Pending")
+                                    </span>
+                                </div>
                             </div>
                             
                             @if (!string.IsNullOrEmpty(todo.CompletionNotes) || todo.Duration > TimeSpan.Zero)
@@ -107,7 +112,15 @@
                                     @(lowerRole == "user" ? "👤" : "🤖")
                                 </div>
                                 <div class="message-content">
-                                    <div class="message-role">@message.Role</div>
+                                    <div class="message-header-row">
+                                        <div class="message-role">@message.Role</div>
+                                        @if (lowerRole == "assistant")
+                                        {
+                                            <button class="message-copy-button" @onclick="() => CopyMessageToClipboard(text)" title="Copy to clipboard">
+                                                📋
+                                            </button>
+                                        }
+                                    </div>
                                     <div class="message-text math-content">
                                         @if (lowerRole == "assistant")
                                         {
@@ -115,7 +128,7 @@
                                         }
                                         else
                                         {
-                                            <span>@text</span>
+                                            @((MarkupString)FormatInlineMarkdown(text))
                                         }
                                     </div>
                                     @if (!string.IsNullOrEmpty(imageUrl))
@@ -180,6 +193,16 @@
         await RefreshData();
     }
 
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            // Render any math that exists on initial load (including persisted messages)
+            await Task.Delay(200);
+            await RenderMathAsync();
+        }
+    }
+
     private async Task HandleSendMessage()
     {
         if (string.IsNullOrWhiteSpace(CurrentPrompt) || IsProcessing)
@@ -242,16 +265,10 @@
             await RefreshData();
             StateHasChanged();
             
-            // Render math expressions with a small delay to ensure DOM is updated
-            await Task.Delay(150);
-            try
-            {
-                await JSRuntime.InvokeVoidAsync("renderMath");
-            }
-            catch (Exception)
-            {
-                // Ignore JS interop errors
-            }
+            // Render math expressions with delay to ensure DOM is fully updated
+            await Task.Delay(200);
+            await RenderMathAsync();
+            StateHasChanged();
         }
         catch (OperationCanceledException)
         {
@@ -293,7 +310,7 @@
     private async Task HandleNewChat()
     {
         CurrentPrompt = string.Empty;
-        Messages.Clear();
+        await ChatService.ClearAsync();
         await TodoService.ClearAsync();
         await RefreshData();
     }
@@ -301,6 +318,7 @@
     private async Task RefreshData()
     {
         Todos = await TodoService.GetAllAsync();
+        Messages = await ChatService.GetMessagesAsync();
         StateHasChanged();
     }
 
@@ -317,6 +335,19 @@
         if (string.IsNullOrEmpty(report))
             return string.Empty;
 
+        // Step 1: Extract and protect ALL math expressions first (including multi-line)
+        var mathPlaceholders = new System.Collections.Generic.List<string>();
+        var mathPattern = @"\$\$(.*?)\$\$|\$(.*?)\$";
+        var mathIndex = 0;
+        
+        report = System.Text.RegularExpressions.Regex.Replace(report, mathPattern, match => {
+            var placeholder = $"___MATH_{mathIndex}___";
+            mathPlaceholders.Add(match.Value);
+            mathIndex++;
+            return placeholder;
+        }, System.Text.RegularExpressions.RegexOptions.Singleline);
+
+        // Step 2: Process lines for structure
         var lines = report.Split('\n', StringSplitOptions.RemoveEmptyEntries);
         var formatted = new System.Text.StringBuilder();
         var inList = false;
@@ -334,7 +365,7 @@
                     inList = true;
                 }
                 var content = System.Text.RegularExpressions.Regex.Replace(trimmed, @"^\d+\.\s", "");
-                formatted.Append($"<li style='margin-bottom: 0.5rem;'>{FormatInlineMarkdown(content)}</li>");
+                formatted.Append($"<li style='margin-bottom: 0.5rem;'>{FormatInlineMarkdownWithoutMath(content)}</li>");
             }
             else
             {
@@ -343,7 +374,7 @@
                     formatted.Append("</ol>");
                     inList = false;
                 }
-                formatted.Append($"<p style='margin-bottom: 0.75rem;'>{FormatInlineMarkdown(trimmed)}</p>");
+                formatted.Append($"<p style='margin-bottom: 0.75rem;'>{FormatInlineMarkdownWithoutMath(trimmed)}</p>");
             }
         }
 
@@ -352,14 +383,44 @@
             formatted.Append("</ol>");
         }
 
-        return formatted.ToString();
+        var result = formatted.ToString();
+        
+        // Step 3: Restore math expressions at the end
+        for (int i = 0; i < mathPlaceholders.Count; i++)
+        {
+            result = result.Replace($"___MATH_{i}___", mathPlaceholders[i]);
+        }
+
+        return result;
+    }
+
+    private string FormatInlineMarkdownWithoutMath(string text)
+    {
+        if (string.IsNullOrEmpty(text))
+            return string.Empty;
+            
+        // HTML encode everything (math already extracted)
+        text = System.Net.WebUtility.HtmlEncode(text);
+        
+        // Apply markdown formatting
+        // Bold **text**
+        text = System.Text.RegularExpressions.Regex.Replace(text, @"\*\*(.+?)\*\*", "<strong>$1</strong>");
+        
+        // Inline code `code`
+        text = System.Text.RegularExpressions.Regex.Replace(text, @"`(.+?)`", "<code style='background: #f3f4f6; padding: 0.125rem 0.375rem; border-radius: 0.25rem; font-family: monospace;'>$1</code>");
+        
+        return text;
     }
 
     private string FormatInlineMarkdown(string text)
     {
-        // Temporarily replace math delimiters to protect them
+        if (string.IsNullOrEmpty(text))
+            return string.Empty;
+            
+        // Step 1: Protect math expressions ($$...$$ BEFORE $...$)
+        // Use Singleline option so . matches newlines (for multi-line math)
         var mathPlaceholders = new System.Collections.Generic.List<string>();
-        var mathPattern = @"\$(.*?)\$|\$\$(.*?)\$\$";
+        var mathPattern = @"\$\$(.*?)\$\$|\$(.*?)\$";
         var mathIndex = 0;
         
         text = System.Text.RegularExpressions.Regex.Replace(text, mathPattern, match => {
@@ -367,18 +428,19 @@
             mathPlaceholders.Add(match.Value);
             mathIndex++;
             return placeholder;
-        });
+        }, System.Text.RegularExpressions.RegexOptions.Singleline);
         
-        // Now safely HTML encode everything else
+        // Step 2: HTML encode everything (including placeholders)
         text = System.Net.WebUtility.HtmlEncode(text);
         
-        // Handle bold **text**
+        // Step 3: Apply markdown formatting on encoded text
+        // Bold **text**
         text = System.Text.RegularExpressions.Regex.Replace(text, @"\*\*(.+?)\*\*", "<strong>$1</strong>");
         
-        // Handle inline code `code`
+        // Inline code `code`
         text = System.Text.RegularExpressions.Regex.Replace(text, @"`(.+?)`", "<code style='background: #f3f4f6; padding: 0.125rem 0.375rem; border-radius: 0.25rem; font-family: monospace;'>$1</code>");
         
-        // Restore math expressions
+        // Step 4: Restore math expressions (unencoded for KaTeX)
         for (int i = 0; i < mathPlaceholders.Count; i++)
         {
             text = text.Replace($"___MATH_{i}___", mathPlaceholders[i]);
@@ -404,5 +466,47 @@
         }
         
         return (content, string.Empty);
+    }
+
+    private async Task CopyTodoToClipboard(TodoItem todo)
+    {
+        try
+        {
+            var textToCopy = todo.Description;
+            if (!string.IsNullOrEmpty(todo.CompletionNotes))
+            {
+                textToCopy += $"\n\n{todo.CompletionNotes}";
+            }
+            
+            await JSRuntime.InvokeVoidAsync("clipboardCopy.copyToClipboard", textToCopy);
+        }
+        catch (Exception)
+        {
+            // Silently fail - clipboard API might not be available
+        }
+    }
+
+    private async Task CopyMessageToClipboard(string text)
+    {
+        try
+        {
+            await JSRuntime.InvokeVoidAsync("clipboardCopy.copyToClipboard", text);
+        }
+        catch (Exception)
+        {
+            // Silently fail - clipboard API might not be available
+        }
+    }
+
+    private async Task RenderMathAsync()
+    {
+        try
+        {
+            await JSRuntime.InvokeVoidAsync("renderMath");
+        }
+        catch (Exception)
+        {
+            // Ignore JS interop errors
+        }
     }
 }
