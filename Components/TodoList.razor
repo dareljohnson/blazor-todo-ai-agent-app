@@ -1,0 +1,85 @@
+@using BlazorAiAgentTodo.Models
+
+<div class="todo-list-container">
+    @if (Todos == null || !Todos.Any())
+    {
+        <div class="empty-state">
+            <i class="rz-icon rz-icon-xl">assignment</i>
+            <p>No tasks yet. Send a message to get started!</p>
+        </div>
+    }
+    else
+    {
+        <RadzenStack Gap="0.5rem">
+            @foreach (var todo in Todos)
+            {
+                <RadzenCard Class="@GetTodoCardClass(todo)">
+                    <div class="todo-item">
+                        <div class="todo-header">
+                            <div class="todo-id">#@todo.Id</div>
+                            <RadzenBadge 
+                                Text="@todo.GetStatusBadge()" 
+                                BadgeStyle="@GetBadgeStyle(todo)"
+                                IsPill="true" />
+                        </div>
+                        
+                        <div class="todo-description">
+                            @todo.Description
+                        </div>
+
+                        @if (todo.IsActive && !string.IsNullOrEmpty(todo.ToolUsed))
+                        {
+                            <div class="todo-tool">
+                                <i class="rz-icon">build</i>
+                                <span>Using: <strong>@todo.ToolUsed</strong></span>
+                            </div>
+                        }
+
+                        @if (todo.IsCompleted && !string.IsNullOrEmpty(todo.CompletionNotes))
+                        {
+                            <div class="completion-notes">
+                                <i class="rz-icon">note</i>
+                                <div>@((MarkupString)todo.CompletionNotes)</div>
+                            </div>
+                        }
+
+                        <div class="todo-footer">
+                            @if (todo.Duration.HasValue || todo.IsActive)
+                            {
+                                <div class="todo-duration">
+                                    <i class="rz-icon">schedule</i>
+                                    <span>@todo.GetDurationDisplay()</span>
+                                </div>
+                            }
+                        </div>
+                    </div>
+                </RadzenCard>
+            }
+        </RadzenStack>
+    }
+</div>
+
+@code {
+    [Parameter]
+    public List<TodoItem>? Todos { get; set; }
+
+    private string GetTodoCardClass(TodoItem todo)
+    {
+        return todo switch
+        {
+            { IsActive: true } => "todo-card todo-active",
+            { IsCompleted: true } => "todo-card todo-completed",
+            _ => "todo-card todo-pending"
+        };
+    }
+
+    private BadgeStyle GetBadgeStyle(TodoItem todo)
+    {
+        return todo switch
+        {
+            { IsCompleted: true } => BadgeStyle.Success,
+            { IsActive: true } => BadgeStyle.Info,
+            _ => BadgeStyle.Light
+        };
+    }
+}

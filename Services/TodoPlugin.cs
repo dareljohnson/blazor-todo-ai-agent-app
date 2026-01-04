@@ -1,0 +1,85 @@
+using System.ComponentModel;
+using System.Text.Json.Serialization;
+using BlazorAiAgentTodo.Services.Interfaces;
+using BlazorAiAgentTodo.Models;
+
+namespace BlazorAiAgentTodo.Services;
+
+/// <summary>
+/// Plugin that provides AI agent with tools to manage todos
+/// </summary>
+public class TodoPlugin
+{
+    private readonly ITodoService _todoService;
+
+    public TodoPlugin(ITodoService todoService)
+    {
+        _todoService = todoService;
+    }
+
+    /// <summary>
+    /// Creates one or more todos based on the provided descriptions.
+    /// </summary>
+    /// <param name="request">The request containing todo descriptions</param>
+    /// <returns>Confirmation message</returns>
+    [Description("Creates one or more todos based on the provided task descriptions")]
+    public async Task<string> CreateToDosJson(
+        [Description("Request object containing array of todo descriptions")] CreateTodosRequest request)
+    {
+        var todos = await _todoService.CreateTodosAsync(request.Descriptions);
+        var createdTodos = todos.Select(t => $"- {t.Description}");
+
+        return $"Created {todos.Count} todo(s):\n{string.Join("\n", createdTodos)}";
+    }
+
+    /// <summary>
+    /// Marks a specific todo as complete with completion notes and timing information.
+    /// </summary>
+    /// <param name="request">The request containing index and completion notes</param>
+    /// <returns>Confirmation message with completion details</returns>
+    [Description("Marks a todo as complete with notes about how it was completed")]
+    public async Task<string> MarkCompleteJson(
+        [Description("Request object containing todo index and completion notes")] MarkCompleteRequest request)
+    {
+        try
+        {
+            // Mark as active first to show work in progress
+            await _todoService.MarkActiveAsync(request.Index + 1, "AI Agent");
+            
+            // Brief delay for visual feedback
+            await Task.Delay(200);
+            
+            // Now mark as complete
+            var updatedTodo = await _todoService.MarkCompleteAsync(request.Index + 1, request.CompletionNotes);
+            return $"Marked todo '{updatedTodo.Description}' as complete.\nNotes: {updatedTodo.CompletionNotes}\nDuration: {updatedTodo.GetDurationDisplay()}";
+        }
+        catch (Exception ex)
+        {
+            return $"Error: {ex.Message}";
+        }
+    }
+}
+
+/// <summary>
+/// Request model for creating todos
+/// </summary>
+public record CreateTodosRequest
+{
+    [Description("Array of task descriptions to create as todos")]
+    [JsonPropertyName("descriptions")]
+    public required string[] Descriptions { get; init; }
+}
+
+/// <summary>
+/// Request model for marking todo as complete
+/// </summary>
+public record MarkCompleteRequest
+{
+    [Description("Zero-based index of the todo to mark as complete")]
+    [JsonPropertyName("index")]
+    public required int Index { get; init; }
+
+    [Description("Notes describing how the task was completed")]
+    [JsonPropertyName("completionNotes")]
+    public required string CompletionNotes { get; init; }
+}

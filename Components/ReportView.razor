@@ -1,0 +1,31 @@
+<div class="report-content">
+    @((MarkupString)FormattedContent)
+</div>
+
+@code {
+    [Parameter]
+    public string? Content { get; set; }
+
+    private string FormattedContent
+    {
+        get
+        {
+            if (string.IsNullOrEmpty(Content))
+                return string.Empty;
+
+            var formatted = Content
+                .Replace("<", "&lt;")
+                .Replace(">", "&gt;")
+                .Replace("\n", "<br/>")
+                .Replace("• ", "<br/>• ");
+
+            // Handle **bold** markdown
+            formatted = System.Text.RegularExpressions.Regex.Replace(
+                formatted, 
+                @"\*\*(.*?)\*\*", 
+                "<strong>$1</strong>");
+
+            return formatted;
+        }
+    }
+}

@@ -1,0 +1,112 @@
+@using BlazorAiAgentTodo.Models
+
+<div class="chat-container">
+    <div class="messages-container" id="messagesContainer">
+        @if (Messages == null || !Messages.Any())
+        {
+            <div class="welcome-message">
+                <i class="rz-icon rz-icon-xxl">psychology</i>
+                <h4>Welcome to AI Agent Todo</h4>
+                <p>Give me a problem to solve, and I'll break it down into steps and work through them!</p>
+            </div>
+        }
+        else
+        {
+            <RadzenStack Gap="1rem">
+                @foreach (var message in Messages)
+                {
+                    <div class="@GetMessageClass(message)">
+                        <div class="message-header">
+                            <strong>@GetRoleDisplay(message.Role)</strong>
+                            <span class="message-time">@message.Timestamp.ToString("HH:mm:ss")</span>
+                        </div>
+                        <div class="message-content">
+                            @if (message.IsStreaming)
+                            {
+                                <RadzenProgressBarCircular ShowValue="false" Mode="ProgressBarMode.Indeterminate" Size="ProgressBarCircularSize.Small" />
+                                <span>@message.Content</span>
+                            }
+                            else
+                            {
+                                @message.Content
+                            }
+                        </div>
+                    </div>
+                }
+            </RadzenStack>
+        }
+    </div>
+
+    <div class="input-container">
+        <RadzenTextArea 
+            @bind-Value="@_inputMessage" 
+            Placeholder="Describe a problem for the AI agent to solve..."
+            Rows="3"
+            Class="w-100"
+            Disabled="@IsProcessing"
+            @onkeydown="@HandleKeyDown" />
+        
+        <div class="input-actions">
+            <RadzenButton 
+                Text="Send" 
+                Icon="send" 
+                ButtonStyle="ButtonStyle.Primary" 
+                Click="@OnSend"
+                Disabled="@(IsProcessing || string.IsNullOrWhiteSpace(_inputMessage))"
+                Class="mt-2" />
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter]
+    public List<ChatMessage>? Messages { get; set; }
+
+    [Parameter]
+    public bool IsProcessing { get; set; }
+
+    [Parameter]
+    public EventCallback<string> OnSendMessage { get; set; }
+
+    private string _inputMessage = string.Empty;
+
+    private async Task OnSend()
+    {
+        if (!string.IsNullOrWhiteSpace(_inputMessage) && !IsProcessing)
+        {
+            var message = _inputMessage;
+            _inputMessage = string.Empty;
+            await OnSendMessage.InvokeAsync(message);
+        }
+    }
+
+    private async Task HandleKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter" && !e.ShiftKey)
+        {
+            await OnSend();
+        }
+    }
+
+    private string GetMessageClass(ChatMessage message)
+    {
+        return message.Role switch
+        {
+            MessageRole.User => "message message-user",
+            MessageRole.Assistant => "message message-assistant",
+            MessageRole.System => "message message-system",
+            _ => "message"
+        };
+    }
+
+    private string GetRoleDisplay(MessageRole role)
+    {
+        return role switch
+        {
+            MessageRole.User => "You",
+            MessageRole.Assistant => "AI Agent",
+            MessageRole.System => "System",
+            _ => "Unknown"
+        };
+    }
+}

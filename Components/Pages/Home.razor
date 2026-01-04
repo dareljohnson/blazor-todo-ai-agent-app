@@ -1,0 +1,349 @@
+@page "/"
+@using BlazorAiAgentTodo.Services
+@using BlazorAiAgentTodo.Models
+@using Microsoft.JSInterop
+@inject IAgentService AgentService
+@inject ITodoService TodoService
+@inject IChatService ChatService
+@inject IJSRuntime JSRuntime
+
+<PageTitle>AI Agent Todo App</PageTitle>
+
+<div class="app-container">
+    <div class="app-header">
+        <h1>🤖 AI Agent Todo App</h1>
+        <p>Powered by OpenAI GPT-5.2</p>
+    </div>
+
+    <div class="main-layout">
+        <!-- Left Sidebar: Todo List -->
+        <div class="card">
+            <div class="card-header">
+                <h2 class="card-title">
+                    <span class="card-icon">✓</span>
+                    Agent Tasks
+                </h2>
+                <span class="status-badge @(Todos.Any(t => t.IsActive) ? "active" : "pending")">
+                    @Todos.Count(t => t.IsCompleted)/@Todos.Count
+                </span>
+            </div>
+            
+            @if (Todos.Any())
+            {
+                <div class="todo-list">
+                    @foreach (var todo in Todos)
+                    {
+                        <div class="todo-item @(todo.IsActive ? "active" : "") @(todo.IsCompleted ? "completed" : "")">
+                            <div class="todo-header">
+                                <div class="todo-description math-content">@((MarkupString)FormatInlineMarkdown(todo.Description))</div>
+                                <span class="status-badge @(todo.IsCompleted ? "completed" : todo.IsActive ? "active" : "pending")">
+                                    @(todo.IsCompleted ? "✓ Done" : todo.IsActive ? "⚙ Active" : "○ Pending")
+                                </span>
+                            </div>
+                            
+                            @if (!string.IsNullOrEmpty(todo.CompletionNotes) || todo.Duration > TimeSpan.Zero)
+                            {
+                                <div class="todo-meta">
+                                    @if (todo.Duration > TimeSpan.Zero)
+                                    {
+                                        <span class="meta-item">
+                                            <span>⏱</span>
+                                            <span>@todo.GetDurationDisplay()</span>
+                                        </span>
+                                    }
+                                    @if (!string.IsNullOrEmpty(todo.ToolUsed))
+                                    {
+                                        <span class="meta-item">
+                                            <span>🔧</span>
+                                            <span>@todo.ToolUsed</span>
+                                        </span>
+                                    }
+                                </div>
+                            }
+                            
+                            @if (!string.IsNullOrEmpty(todo.CompletionNotes))
+                            {
+                                <div class="todo-notes math-content">
+                                    @((MarkupString)FormatInlineMarkdown(todo.CompletionNotes))
+                                </div>
+                            }
+                        </div>
+                    }
+                </div>
+            }
+            else
+            {
+                <div class="empty-state">
+                    <div class="empty-state-icon">📝</div>
+                    <div class="empty-state-text">No tasks yet. Start a conversation to see agent tasks!</div>
+                </div>
+            }
+        </div>
+
+        <!-- Right Main Area: Chat & Report -->
+        <div class="chat-section">
+            <!-- Chat Messages -->
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title">
+                        <span class="card-icon">💬</span>
+                        Conversation
+                    </h2>
+                    <button class="btn btn-secondary" @onclick="HandleNewChat" disabled="@IsProcessing">
+                        🔄 New Chat
+                    </button>
+                </div>
+                
+                @if (Messages.Any())
+                {
+                    <div class="chat-messages">
+                        @foreach (var message in Messages)
+                        {
+                            var lowerRole = message.Role.ToString().ToLowerInvariant();
+                            <div class="chat-message @lowerRole">
+                                <div class="message-avatar">
+                                    @(lowerRole == "user" ? "👤" : "🤖")
+                                </div>
+                                <div class="message-content">
+                                    <div class="message-role">@message.Role</div>
+                                    <div class="message-text math-content">
+                                        @if (lowerRole == "assistant")
+                                        {
+                                            @((MarkupString)FormatReport(message.Content))
+                                        }
+                                        else
+                                        {
+                                            <span>@message.Content</span>
+                                        }
+                                    </div>
+                                    <div class="message-timestamp">@message.Timestamp.ToString("HH:mm:ss")</div>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                }
+                else
+                {
+                    <div class="empty-state">
+                        <div class="empty-state-icon">💭</div>
+                        <div class="empty-state-text">Send a message to start chatting with the AI agent!</div>
+                    </div>
+                }
+                
+                <!-- Chat Input -->
+                <div class="chat-input-area">
+                    <textarea 
+                        class="chat-input" 
+                        placeholder="Ask me to help with calculations, planning, or any task..."
+                        @bind="CurrentPrompt"
+                        @bind:event="oninput"
+                        disabled="@IsProcessing"
+                        @onkeydown="HandleKeyDown"></textarea>
+                    
+                    <div class="chat-actions">
+                        <button class="btn btn-primary" @onclick="HandleSendMessage" disabled="@(IsProcessing || string.IsNullOrWhiteSpace(CurrentPrompt))">
+                            @if (IsProcessing)
+                            {
+                                <span class="loading">
+                                    <span class="spinner"></span>
+                                    Processing...
+                                </span>
+                            }
+                            else
+                            {
+                                <span>✈ Send Message</span>
+                            }
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private string CurrentPrompt { get; set; } = string.Empty;
+    private bool IsProcessing { get; set; } = false;
+    private List<ChatMessage> Messages { get; set; } = new();
+    private List<TodoItem> Todos { get; set; } = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await RefreshData();
+    }
+
+    private async Task HandleSendMessage()
+    {
+        if (string.IsNullOrWhiteSpace(CurrentPrompt) || IsProcessing)
+            return;
+
+        IsProcessing = true;
+        var userPrompt = CurrentPrompt;
+        CurrentPrompt = string.Empty;
+
+        try
+        {
+            // Add user message
+            var userMessage = ChatMessageFactory.CreateUser(userPrompt);
+            Messages.Add(userMessage);
+            await ChatService.AddMessageAsync(userMessage);
+            StateHasChanged();
+
+            // Process with agent - refresh todos in real-time
+            var response = await AgentService.ProcessPromptAsync(
+                userPrompt,
+                onUpdate: async (update) =>
+                {
+                    await RefreshData();
+                    await InvokeAsync(StateHasChanged);
+                }
+            );
+
+            // Wait for all tasks to be marked complete
+            var maxWaitTime = TimeSpan.FromSeconds(30);
+            var startTime = DateTime.UtcNow;
+            while (DateTime.UtcNow - startTime < maxWaitTime)
+            {
+                await RefreshData();
+                
+                // Check if all todos are completed
+                if (Todos.Any() && Todos.All(t => t.IsCompleted))
+                {
+                    break;
+                }
+                
+                await Task.Delay(100);
+            }
+            
+            // Final refresh
+            await RefreshData();
+            
+            // Now add assistant response after all tasks are done
+            var assistantMessage = ChatMessageFactory.CreateAssistant(response);
+            Messages.Add(assistantMessage);
+            await ChatService.AddMessageAsync(assistantMessage);
+
+            await RefreshData();
+            StateHasChanged();
+            
+            // Render math expressions with a small delay to ensure DOM is updated
+            await Task.Delay(150);
+            try
+            {
+                await JSRuntime.InvokeVoidAsync("renderMath");
+            }
+            catch (Exception)
+            {
+                // Ignore JS interop errors
+            }
+        }
+        catch (Exception ex)
+        {
+            var errorMessage = ChatMessageFactory.CreateAssistant($"Error: {ex.Message}");
+            Messages.Add(errorMessage);
+            await ChatService.AddMessageAsync(errorMessage);
+        }
+        finally
+        {
+            IsProcessing = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task HandleNewChat()
+    {
+        CurrentPrompt = string.Empty;
+        Messages.Clear();
+        await TodoService.ClearAsync();
+        await RefreshData();
+    }
+
+    private async Task RefreshData()
+    {
+        Todos = await TodoService.GetAllAsync();
+        StateHasChanged();
+    }
+
+    private async Task HandleKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter" && e.CtrlKey && !IsProcessing)
+        {
+            await HandleSendMessage();
+        }
+    }
+
+    private string FormatReport(string report)
+    {
+        if (string.IsNullOrEmpty(report))
+            return string.Empty;
+
+        var lines = report.Split('\n', StringSplitOptions.RemoveEmptyEntries);
+        var formatted = new System.Text.StringBuilder();
+        var inList = false;
+
+        foreach (var line in lines)
+        {
+            var trimmed = line.Trim();
+            
+            // Handle numbered lists (e.g., "1. ", "2. ")
+            if (System.Text.RegularExpressions.Regex.IsMatch(trimmed, @"^\d+\.\s"))
+            {
+                if (!inList)
+                {
+                    formatted.Append("<ol style='margin-left: 1.5rem; margin-bottom: 1rem;'>");
+                    inList = true;
+                }
+                var content = System.Text.RegularExpressions.Regex.Replace(trimmed, @"^\d+\.\s", "");
+                formatted.Append($"<li style='margin-bottom: 0.5rem;'>{FormatInlineMarkdown(content)}</li>");
+            }
+            else
+            {
+                if (inList)
+                {
+                    formatted.Append("</ol>");
+                    inList = false;
+                }
+                formatted.Append($"<p style='margin-bottom: 0.75rem;'>{FormatInlineMarkdown(trimmed)}</p>");
+            }
+        }
+
+        if (inList)
+        {
+            formatted.Append("</ol>");
+        }
+
+        return formatted.ToString();
+    }
+
+    private string FormatInlineMarkdown(string text)
+    {
+        // Temporarily replace math delimiters to protect them
+        var mathPlaceholders = new System.Collections.Generic.List<string>();
+        var mathPattern = @"\$(.*?)\$|\$\$(.*?)\$\$";
+        var mathIndex = 0;
+        
+        text = System.Text.RegularExpressions.Regex.Replace(text, mathPattern, match => {
+            var placeholder = $"___MATH_{mathIndex}___";
+            mathPlaceholders.Add(match.Value);
+            mathIndex++;
+            return placeholder;
+        });
+        
+        // Now safely HTML encode everything else
+        text = System.Net.WebUtility.HtmlEncode(text);
+        
+        // Handle bold **text**
+        text = System.Text.RegularExpressions.Regex.Replace(text, @"\*\*(.+?)\*\*", "<strong>$1</strong>");
+        
+        // Handle inline code `code`
+        text = System.Text.RegularExpressions.Regex.Replace(text, @"`(.+?)`", "<code style='background: #f3f4f6; padding: 0.125rem 0.375rem; border-radius: 0.25rem; font-family: monospace;'>$1</code>");
+        
+        // Restore math expressions
+        for (int i = 0; i < mathPlaceholders.Count; i++)
+        {
+            text = text.Replace($"___MATH_{i}___", mathPlaceholders[i]);
+        }
+        
+        return text;
+    }
+}
