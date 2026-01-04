@@ -37,7 +37,33 @@ cd c:\development\dotnet_apps\blazor-ai-agent-todo
 
 The app works out of the box in demonstration mode. To enable real AI:
 
-Edit `appsettings.Development.json`:
+**Option 1: Environment Variables (Recommended)**
+```powershell
+# Windows PowerShell
+$env:OpenAI__ApiKey = "your-openai-api-key"
+$env:OpenAI__Model = "gpt-4o"
+dotnet run --project BlazorAiAgentTodo.csproj
+
+# Windows Command Prompt
+set OpenAI__ApiKey=your-openai-api-key
+set OpenAI__Model=gpt-4o
+dotnet run --project BlazorAiAgentTodo.csproj
+
+# Linux/macOS
+export OpenAI__ApiKey="your-openai-api-key"
+export OpenAI__Model="gpt-4o"
+dotnet run --project BlazorAiAgentTodo.csproj
+```
+
+**Option 2: User Secrets (For Development)**
+```powershell
+dotnet user-secrets init --project BlazorAiAgentTodo.csproj
+dotnet user-secrets set "OpenAI:ApiKey" "your-openai-api-key" --project BlazorAiAgentTodo.csproj
+dotnet user-secrets set "OpenAI:Model" "gpt-4o" --project BlazorAiAgentTodo.csproj
+```
+
+**Option 3: appsettings.Development.json (Not recommended for Git repos)**
+Edit `appsettings.Development.json` (already in .gitignore):
 ```json
 {
   "OpenAI": {
@@ -47,13 +73,13 @@ Edit `appsettings.Development.json`:
 }
 ```
 
-⚠️ **Never commit API keys!** (Already gitignored)
+⚠️ **Security Note**: Never commit API keys to Git! Use environment variables or user secrets.
 
 ### 3. Restore & Build
 
 ```powershell
 dotnet restore BlazorAiAgentTodo.sln
-dotnet build BlazorAiAgentTodo.sln -c Release
+dotenv-bash-dotnet build BlazorAiAgentTodo.sln -c Release
 ```
 
 ### 4. Run Tests (All 31 pass!)
