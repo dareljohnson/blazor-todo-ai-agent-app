@@ -216,3 +216,4 @@ For issues, questions, or feedback:
 ---
 
 **Built with ❤️ using .NET 8 and Blazor Server**
+

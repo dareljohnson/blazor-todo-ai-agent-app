@@ -32,3 +32,4 @@ public interface ITodoService
     /// </summary>
     Task ClearAsync(CancellationToken cancellationToken = default);
 }
+

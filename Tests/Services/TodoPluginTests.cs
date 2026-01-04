@@ -1,9 +1,6 @@
+using BlazorAiAgentTodo.Models;
 using BlazorAiAgentTodo.Services;
 using BlazorAiAgentTodo.Services.Interfaces;
-using BlazorAiAgentTodo.Models;
-using Moq;
-using FluentAssertions;
-using Xunit;
 
 namespace BlazorAiAgentTodo.Tests.Services;
 
@@ -26,7 +23,7 @@ public class TodoPluginTests
         // Arrange
         var descriptions = new[] { "Task 1", "Task 2", "Task 3" };
         var request = new CreateTodosRequest { Descriptions = descriptions };
-        
+
         var expectedTodos = new List<TodoItem>
         {
             TodoItemFactory.Create(1, "Task 1"),
@@ -46,7 +43,7 @@ public class TodoPluginTests
         result.Should().Contain("- Task 1");
         result.Should().Contain("- Task 2");
         result.Should().Contain("- Task 3");
-        
+
         _mockTodoService.Verify(x => x.CreateTodosAsync(descriptions, default), Times.Once);
     }
 
@@ -54,15 +51,15 @@ public class TodoPluginTests
     public async Task MarkCompleteJson_ShouldMarkTodoAsActiveAndThenComplete()
     {
         // Arrange
-        var request = new MarkCompleteRequest 
-        { 
-            Index = 0, 
-            CompletionNotes = "Task completed successfully" 
+        var request = new MarkCompleteRequest
+        {
+            Index = 0,
+            CompletionNotes = "Task completed successfully"
         };
 
         var activeTodo = TodoItemFactory.Create(1, "Test Task");
         activeTodo = TodoItemFactory.MarkAsActive(activeTodo, "AI Agent");
-        
+
         var completedTodo = TodoItemFactory.MarkAsCompleted(activeTodo, "Task completed successfully");
 
         _mockTodoService
@@ -79,7 +76,7 @@ public class TodoPluginTests
         // Assert
         result.Should().Contain("Marked todo 'Test Task' as complete");
         result.Should().Contain("Notes: Task completed successfully");
-        
+
         _mockTodoService.Verify(x => x.MarkActiveAsync(1, "AI Agent", default), Times.Once);
         _mockTodoService.Verify(x => x.MarkCompleteAsync(1, "Task completed successfully", default), Times.Once);
     }
@@ -88,10 +85,10 @@ public class TodoPluginTests
     public async Task MarkCompleteJson_ShouldHandleErrorsGracefully()
     {
         // Arrange
-        var request = new MarkCompleteRequest 
-        { 
-            Index = 0, 
-            CompletionNotes = "Test notes" 
+        var request = new MarkCompleteRequest
+        {
+            Index = 0,
+            CompletionNotes = "Test notes"
         };
 
         _mockTodoService
@@ -111,7 +108,7 @@ public class TodoPluginTests
     {
         // Arrange
         var request = new CreateTodosRequest { Descriptions = Array.Empty<string>() };
-        
+
         _mockTodoService
             .Setup(x => x.CreateTodosAsync(It.IsAny<string[]>(), default))
             .ReturnsAsync(new List<TodoItem>());
@@ -127,10 +124,10 @@ public class TodoPluginTests
     public async Task MarkCompleteJson_ShouldUseZeroBasedIndexing()
     {
         // Arrange - Request index 0 should map to todo index 1 (1-based in service)
-        var request = new MarkCompleteRequest 
-        { 
-            Index = 0, 
-            CompletionNotes = "First task done" 
+        var request = new MarkCompleteRequest
+        {
+            Index = 0,
+            CompletionNotes = "First task done"
         };
 
         var todo = TodoItemFactory.Create(1, "First Task");

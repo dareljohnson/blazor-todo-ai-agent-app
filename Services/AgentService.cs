@@ -1,9 +1,8 @@
+using BlazorAiAgentTodo.Services.Interfaces;
 using OpenAI;
 using OpenAI.Chat;
 using OpenAI.Images;
 using System.ClientModel;
-using System.Text.Json;
-using BlazorAiAgentTodo.Services.Interfaces;
 
 namespace BlazorAiAgentTodo.Services;
 
@@ -18,7 +17,7 @@ public class AgentService : IAgentService
     private readonly List<ChatMessage> _conversationHistory = new();
 
     public AgentService(
-        ITodoService todoService, 
+        ITodoService todoService,
         IChatService chatService,
         IConfiguration configuration)
     {
@@ -26,11 +25,11 @@ public class AgentService : IAgentService
         _chatService = chatService ?? throw new ArgumentNullException(nameof(chatService));
         _configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
 
-        var apiKey = _configuration["OpenAI:ApiKey"] 
+        var apiKey = _configuration["OpenAI:ApiKey"]
             ?? throw new InvalidOperationException("OpenAI API key not configured");
-        
+
         var openAiClient = new OpenAIClient(new ApiKeyCredential(apiKey));
-        
+
         _chatClient = openAiClient.GetChatClient("gpt-4o");
         _imageClient = openAiClient.GetImageClient("dall-e-3");
         _imageService = new ImageService(_imageClient, new Logger<ImageService>(new LoggerFactory()));
@@ -187,7 +186,7 @@ CRITICAL RULES:
 
             // Get response with tool calls
             var response = await _chatClient.CompleteChatAsync(_conversationHistory, chatOptions, cancellationToken);
-            
+
             // Process tool calls in a loop
             while (response.Value.FinishReason == ChatFinishReason.ToolCalls)
             {
@@ -201,10 +200,10 @@ CRITICAL RULES:
                     try
                     {
                         result = await ExecuteToolCallAsync(toolCall, cancellationToken);
-                        
+
                         // Notify UI to refresh after each tool execution
                         onUpdate?.Invoke($"{toolCall.FunctionName}");
-                        
+
                         // Delay to allow UI to show the changes
                         await Task.Delay(100, cancellationToken);
                     }
@@ -253,4 +252,5 @@ CRITICAL RULES:
                 return $"Unknown tool: {toolCall.FunctionName}";
         }
     }
+
 }

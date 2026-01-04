@@ -1,10 +1,6 @@
 using BlazorAiAgentTodo.Services;
 using BlazorAiAgentTodo.Services.Interfaces;
-using BlazorAiAgentTodo.Models;
 using Microsoft.Extensions.Configuration;
-using Moq;
-using FluentAssertions;
-using Xunit;
 
 namespace BlazorAiAgentTodo.Tests.Services;
 

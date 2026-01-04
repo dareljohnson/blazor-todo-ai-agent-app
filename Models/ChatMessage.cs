@@ -68,4 +68,5 @@ public static class ChatMessageFactory
             IsStreaming = false
         };
     }
+
 }

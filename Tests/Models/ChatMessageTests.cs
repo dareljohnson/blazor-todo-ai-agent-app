@@ -53,4 +53,5 @@ public class ChatMessageTests
         result.Role.Should().Be(MessageRole.System);
         result.Content.Should().Be("System message");
     }
+
 }

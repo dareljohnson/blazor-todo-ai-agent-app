@@ -22,3 +22,4 @@ public interface IChatService
     /// </summary>
     Task ClearAsync(CancellationToken cancellationToken = default);
 }
+

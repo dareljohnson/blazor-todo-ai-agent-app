@@ -70,4 +70,5 @@ public class ChatServiceTests
         // Assert
         result.Should().BeEmpty();
     }
+
 }

@@ -111,4 +111,5 @@ public class TodoItemTests
         active.GetStatusBadge().Should().Contain("Progress");
         completed.GetStatusBadge().Should().Contain("Completed");
     }
+
 }

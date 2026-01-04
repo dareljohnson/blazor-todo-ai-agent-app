@@ -1,7 +1,6 @@
-using System.ComponentModel;
-using System.Text.Json.Serialization;
-using BlazorAiAgentTodo.Services.Interfaces;
 using BlazorAiAgentTodo.Models;
+using BlazorAiAgentTodo.Services.Interfaces;
+using System.ComponentModel;
 
 namespace BlazorAiAgentTodo.Services;
 
@@ -47,10 +46,10 @@ public class TodoPlugin
         {
             // Mark as active first to show work in progress
             await _todoService.MarkActiveAsync(request.Index + 1, "AI Agent");
-            
+
             // Brief delay for visual feedback
             await Task.Delay(200);
-            
+
             // Now mark as complete
             var updatedTodo = await _todoService.MarkCompleteAsync(request.Index + 1, request.CompletionNotes);
             return $"Marked todo '{updatedTodo.Description}' as complete.\nNotes: {updatedTodo.CompletionNotes}\nDuration: {updatedTodo.GetDurationDisplay()}";

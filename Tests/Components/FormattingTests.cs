@@ -1,6 +1,3 @@
-using FluentAssertions;
-using Xunit;
-
 namespace BlazorAiAgentTodo.Tests.Components;
 
 public class FormattingTests
@@ -14,7 +11,7 @@ public class FormattingTests
     {
         // Arrange & Act
         var result = FormatInlineMarkdown(input);
-        
+
         // Assert
         result.Should().Contain("$");
         result.Should().Contain(expected.Split('$')[1]); // Contains the math content
@@ -27,7 +24,7 @@ public class FormattingTests
     {
         // Arrange & Act
         var result = FormatInlineMarkdown(input);
-        
+
         // Assert
         result.Should().Contain(expectedContent);
     }
@@ -39,7 +36,7 @@ public class FormattingTests
     {
         // Arrange & Act
         var result = FormatInlineMarkdown(input);
-        
+
         // Assert
         result.Should().Contain(expectedMarkdown);
         result.Should().Contain(expectedMath);
@@ -50,10 +47,10 @@ public class FormattingTests
     {
         // Arrange
         var input = "Test <script>alert('xss')</script> with $x < y$";
-        
+
         // Act
         var result = FormatInlineMarkdown(input);
-        
+
         // Assert
         result.Should().Contain("&lt;script&gt;"); // Script tags should be HTML encoded
         result.Should().Contain("$x < y$"); // Math should be preserved with < and >
@@ -66,7 +63,7 @@ public class FormattingTests
     {
         // Arrange & Act
         var result = FormatInlineMarkdown(input);
-        
+
         // Assert
         result.Should().Contain("$$");
         result.Should().Contain(expected);
@@ -80,10 +77,10 @@ public class FormattingTests
 1. First step
 2. Second step
 3. Third step";
-        
+
         // Act
         var result = FormatReport(input);
-        
+
         // Assert
         result.Should().Contain("<ol");
         result.Should().Contain("<li");
@@ -100,10 +97,10 @@ public class FormattingTests
         var input = @"Solutions:
 1. The answer is $x = 5$
 2. Or $x = -2$";
-        
+
         // Act
         var result = FormatReport(input);
-        
+
         // Assert
         result.Should().Contain("$x = 5$");
         result.Should().Contain("$x = -2$");
@@ -117,10 +114,10 @@ public class FormattingTests
         var input = @"The quadratic formula is $x = \frac{-b \pm \sqrt{b^2 - 4ac}}{2a}$.
 
 This solves equations of the form $ax^2 + bx + c = 0$.";
-        
+
         // Act
         var result = FormatReport(input);
-        
+
         // Assert
         result.Should().Contain("$x = \\frac{-b \\pm \\sqrt{b^2 - 4ac}}{2a}$");
         result.Should().Contain("$ax^2 + bx + c = 0$");
@@ -134,29 +131,30 @@ This solves equations of the form $ax^2 + bx + c = 0$.";
         var mathPlaceholders = new System.Collections.Generic.List<string>();
         var mathPattern = @"\$(.*?)\$|\$\$(.*?)\$\$";
         var mathIndex = 0;
-        
-        text = System.Text.RegularExpressions.Regex.Replace(text, mathPattern, match => {
+
+        text = System.Text.RegularExpressions.Regex.Replace(text, mathPattern, match =>
+        {
             var placeholder = $"___MATH_{mathIndex}___";
             mathPlaceholders.Add(match.Value);
             mathIndex++;
             return placeholder;
         });
-        
+
         // Now safely HTML encode everything else
         text = System.Net.WebUtility.HtmlEncode(text);
-        
+
         // Handle bold **text**
         text = System.Text.RegularExpressions.Regex.Replace(text, @"\*\*(.+?)\*\*", "<strong>$1</strong>");
-        
+
         // Handle inline code `code`
         text = System.Text.RegularExpressions.Regex.Replace(text, @"`(.+?)`", "<code style='background: #f3f4f6; padding: 0.125rem 0.375rem; border-radius: 0.25rem; font-family: monospace;'>$1</code>");
-        
+
         // Restore math expressions
         for (int i = 0; i < mathPlaceholders.Count; i++)
         {
             text = text.Replace($"___MATH_{i}___", mathPlaceholders[i]);
         }
-        
+
         return text;
     }
 
@@ -172,7 +170,7 @@ This solves equations of the form $ax^2 + bx + c = 0$.";
         foreach (var line in lines)
         {
             var trimmed = line.Trim();
-            
+
             // Handle numbered lists (e.g., "1. ", "2. ")
             if (System.Text.RegularExpressions.Regex.IsMatch(trimmed, @"^\d+\.\s"))
             {
@@ -210,7 +208,7 @@ This solves equations of the form $ax^2 + bx + c = 0$.";
     {
         // Act
         var result = FormatInlineMarkdown(input);
-        
+
         // Assert
         foreach (var part in expectedParts)
         {
@@ -223,7 +221,7 @@ This solves equations of the form $ax^2 + bx + c = 0$.";
     {
         // Act
         var result = FormatReport(string.Empty);
-        
+
         // Assert
         result.Should().BeEmpty();
     }
@@ -233,7 +231,7 @@ This solves equations of the form $ax^2 + bx + c = 0$.";
     {
         // Act
         var result = FormatReport(null!);
-        
+
         // Assert
         result.Should().BeEmpty();
     }
@@ -243,7 +241,7 @@ This solves equations of the form $ax^2 + bx + c = 0$.";
     {
         // Act
         var result = FormatInlineMarkdown("   ");
-        
+
         // Assert
         result.Should().NotBeNullOrEmpty();
     }
@@ -253,10 +251,10 @@ This solves equations of the form $ax^2 + bx + c = 0$.";
     {
         // Arrange
         var input = "First $a = 1$ then $b = 2$ and finally $c = 3$";
-        
+
         // Act
         var result = FormatInlineMarkdown(input);
-        
+
         // Assert
         result.Should().Contain("$a = 1$");
         result.Should().Contain("$b = 2$");
@@ -271,10 +269,10 @@ This solves equations of the form $ax^2 + bx + c = 0$.";
 1. First: **bold** with $x = 5$
 2. Second: `code` with $y = 10$
 3. Third: Mixed **bold `code`** and $z = 15$";
-        
+
         // Act
         var result = FormatReport(input);
-        
+
         // Assert
         result.Should().Contain("<ol");
         result.Should().Contain("<li");
@@ -284,4 +282,5 @@ This solves equations of the form $ax^2 + bx + c = 0$.";
         result.Should().Contain("$y = 10$");
         result.Should().Contain("$z = 15$");
     }
+
 }

@@ -1,12 +1,9 @@
 using BlazorAiAgentTodo.Components.Pages;
+using BlazorAiAgentTodo.Models;
 using BlazorAiAgentTodo.Services.Interfaces;
 using Bunit;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.JSInterop;
-using Moq;
-using FluentAssertions;
-using Xunit;
-using BlazorAiAgentTodo.Models;
 
 namespace BlazorAiAgentTodo.Tests.Components;
 
@@ -27,7 +24,7 @@ public class HomePageTests : TestContext
         // Setup default returns
         _mockTodoService.Setup(x => x.GetAllAsync(default))
             .ReturnsAsync(new List<TodoItem>());
-        
+
         _mockChatService.Setup(x => x.GetMessagesAsync(default))
             .ReturnsAsync(new List<ChatMessage>());
 
@@ -70,7 +67,7 @@ public class HomePageTests : TestContext
             TodoItemFactory.Create(1, "Test task 1"),
             TodoItemFactory.Create(2, "Test task 2")
         };
-        
+
         _mockTodoService.Setup(x => x.GetAllAsync(default))
             .ReturnsAsync(todos);
 
@@ -142,7 +139,7 @@ public class HomePageTests : TestContext
             TodoItemFactory.Create(1, "Test 1"),
             TodoItemFactory.MarkAsCompleted(TodoItemFactory.Create(2, "Test 2"), "Done")
         };
-        
+
         _mockTodoService.Setup(x => x.GetAllAsync(default))
             .ReturnsAsync(todos);
 

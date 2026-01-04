@@ -1,4 +1,3 @@
-using BlazorAiAgentTodo.Models;
 using BlazorAiAgentTodo.Services;
 
 namespace BlazorAiAgentTodo.Tests.Services;

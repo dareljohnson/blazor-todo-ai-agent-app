@@ -1,9 +1,6 @@
 using BlazorAiAgentTodo.Services;
-using FluentAssertions;
 using Microsoft.Extensions.Logging;
-using Moq;
 using OpenAI.Images;
-using Xunit;
 
 namespace BlazorAiAgentTodo.Tests.Services;
 
