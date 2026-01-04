@@ -175,6 +175,13 @@
                                 <span>✈ Send Message</span>
                             }
                         </button>
+                        
+                        @if (IsProcessing)
+                        {
+                            <button class="btn btn-cancel" @onclick="HandleCancelProcessing">
+                                🛑 Cancel
+                            </button>
+                        }
                     </div>
                 </div>
             </div>
@@ -187,6 +194,7 @@
     private bool IsProcessing { get; set; } = false;
     private List<ChatMessage> Messages { get; set; } = new();
     private List<TodoItem> Todos { get; set; } = new();
+    private CancellationTokenSource? _cancellationTokenSource;
 
     protected override async Task OnInitializedAsync()
     {
@@ -209,6 +217,7 @@
             return;
 
         IsProcessing = true;
+        _cancellationTokenSource = new CancellationTokenSource();
         var userPrompt = CurrentPrompt.Trim();
         CurrentPrompt = string.Empty;
 
@@ -235,7 +244,8 @@
                 {
                     await RefreshData();
                     await InvokeAsync(StateHasChanged);
-                }
+                },
+                cancellationToken: _cancellationTokenSource.Token
             );
 
             // Wait for all tasks to be marked complete
@@ -243,6 +253,8 @@
             var startTime = DateTime.UtcNow;
             while (DateTime.UtcNow - startTime < maxWaitTime)
             {
+                _cancellationTokenSource.Token.ThrowIfCancellationRequested();
+                
                 await RefreshData();
                 
                 // Check if all todos are completed
@@ -251,7 +263,7 @@
                     break;
                 }
                 
-                await Task.Delay(100);
+                await Task.Delay(100, _cancellationTokenSource.Token);
             }
             
             // Final refresh
@@ -266,7 +278,7 @@
             StateHasChanged();
             
             // Render math expressions with delay to ensure DOM is fully updated
-            await Task.Delay(200);
+            await Task.Delay(200, _cancellationTokenSource.Token);
             await RenderMathAsync();
             StateHasChanged();
         }
@@ -294,8 +306,18 @@
         }
         finally
         {
+            _cancellationTokenSource?.Dispose();
+            _cancellationTokenSource = null;
             IsProcessing = false;
             StateHasChanged();
+        }
+    }
+
+    private void HandleCancelProcessing()
+    {
+        if (_cancellationTokenSource != null && !_cancellationTokenSource.IsCancellationRequested)
+        {
+            _cancellationTokenSource.Cancel();
         }
     }
 
