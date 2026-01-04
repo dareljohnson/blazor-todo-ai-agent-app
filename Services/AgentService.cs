@@ -221,7 +221,12 @@ CRITICAL RULES:
             }
 
             // Return final text response
-            return response.Value.Content[0].Text;
+            var finalText = response.Value.Content[0].Text;
+            Console.WriteLine($"[AgentService] Final response length: {finalText.Length}");
+            Console.WriteLine($"[AgentService] First 200 chars: {finalText.Substring(0, Math.Min(200, finalText.Length))}");
+            Console.WriteLine($"[AgentService] Contains asterisks: {finalText.Contains("**")}");
+            Console.WriteLine($"[AgentService] Contains unicode asterisks (U+2217): {finalText.Contains("∗")}");
+            return finalText;
         }
         catch (Exception ex)
         {

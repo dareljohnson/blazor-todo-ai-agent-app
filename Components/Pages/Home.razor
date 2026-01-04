@@ -335,14 +335,33 @@
         if (string.IsNullOrEmpty(report))
             return string.Empty;
 
+        // DEBUG: Log input
+        Console.WriteLine($"[FormatReport] Input length: {report.Length}, first 100 chars: {report.Substring(0, Math.Min(100, report.Length))}");
+
         // Step 1: Extract and protect ALL math expressions first (including multi-line)
+        // Support both LaTeX \(...\), \[...\] and Markdown $...$, $$...$$ syntax
+        // Make inline math $ pattern restrictive: no newlines, no commas (currency uses commas)
         var mathPlaceholders = new System.Collections.Generic.List<string>();
-        var mathPattern = @"\$\$(.*?)\$\$|\$(.*?)\$";
+        // Display math can be multi-line, inline math cannot and must not contain commas
+        var mathPattern = @"\$\$([^$]+?)\$\$|\\\[([^\]]+?)\\\]|\\\(([^)]+?)\\\)|\$([a-zA-Z0-9+\-*/=^(){}\[\]\\\s\.]+?)\$";
         var mathIndex = 0;
         
         report = System.Text.RegularExpressions.Regex.Replace(report, mathPattern, match => {
             var placeholder = $"___MATH_{mathIndex}___";
-            mathPlaceholders.Add(match.Value);
+            // Convert LaTeX syntax to KaTeX-friendly $ syntax
+            var mathContent = match.Value;
+            if (mathContent.StartsWith("\\[") && mathContent.EndsWith("\\]"))
+            {
+                // Display math \[...\] -> $$...$$
+                mathContent = "$$" + mathContent.Substring(2, mathContent.Length - 4) + "$$";
+            }
+            else if (mathContent.StartsWith("\\(") && mathContent.EndsWith("\\)"))
+            {
+                // Inline math \(...\) -> $...$
+                mathContent = "$" + mathContent.Substring(2, mathContent.Length - 4) + "$";
+            }
+            mathPlaceholders.Add(mathContent);
+            Console.WriteLine($"[FormatReport] Extracted math {mathIndex}: {match.Value} -> {mathContent}");
             mathIndex++;
             return placeholder;
         }, System.Text.RegularExpressions.RegexOptions.Singleline);
@@ -417,15 +436,26 @@
         if (string.IsNullOrEmpty(text))
             return string.Empty;
             
-        // Step 1: Protect math expressions ($$...$$ BEFORE $...$)
-        // Use Singleline option so . matches newlines (for multi-line math)
+        // Step 1: Protect math expressions (support LaTeX and Markdown syntax)
+        // Use Singleline option for display math only, inline math must not span lines or contain commas
         var mathPlaceholders = new System.Collections.Generic.List<string>();
-        var mathPattern = @"\$\$(.*?)\$\$|\$(.*?)\$";
+        // Display math can be multi-line, inline math cannot contain newlines or commas (currency indicator)
+        var mathPattern = @"\$\$([^$]+?)\$\$|\\\[([^\]]+?)\\\]|\\\(([^)]+?)\\\)|\$([a-zA-Z0-9+\-*/=^(){}\[\]\\\s\.]+?)\$";
         var mathIndex = 0;
         
         text = System.Text.RegularExpressions.Regex.Replace(text, mathPattern, match => {
             var placeholder = $"___MATH_{mathIndex}___";
-            mathPlaceholders.Add(match.Value);
+            // Convert LaTeX syntax to KaTeX-friendly $ syntax
+            var mathContent = match.Value;
+            if (mathContent.StartsWith("\\[") && mathContent.EndsWith("\\]"))
+            {
+                mathContent = "$$" + mathContent.Substring(2, mathContent.Length - 4) + "$$";
+            }
+            else if (mathContent.StartsWith("\\(") && mathContent.EndsWith("\\)"))
+            {
+                mathContent = "$" + mathContent.Substring(2, mathContent.Length - 4) + "$";
+            }
+            mathPlaceholders.Add(mathContent);
             mathIndex++;
             return placeholder;
         }, System.Text.RegularExpressions.RegexOptions.Singleline);

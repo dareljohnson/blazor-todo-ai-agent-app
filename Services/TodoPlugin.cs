@@ -34,6 +34,26 @@ public class TodoPlugin
     }
 
     /// <summary>
+    /// Marks a specific todo as active when beginning work on it.
+    /// </summary>
+    /// <param name="request">The request containing the todo index</param>
+    /// <returns>Confirmation message</returns>
+    [Description("Marks a todo as active/in-progress when you begin working on it")]
+    public async Task<string> MarkActiveJson(
+        [Description("Request object containing todo index")] MarkActiveRequest request)
+    {
+        try
+        {
+            var updatedTodo = await _todoService.MarkActiveAsync(request.Index + 1, "AI Agent");
+            return $"Started working on: {updatedTodo.Description}";
+        }
+        catch (Exception ex)
+        {
+            return $"Error: {ex.Message}";
+        }
+    }
+
+    /// <summary>
     /// Marks a specific todo as complete with completion notes and timing information.
     /// </summary>
     /// <param name="request">The request containing index and completion notes</param>
@@ -44,13 +64,6 @@ public class TodoPlugin
     {
         try
         {
-            // Mark as active first to show work in progress
-            await _todoService.MarkActiveAsync(request.Index + 1, "AI Agent");
-
-            // Brief delay for visual feedback
-            await Task.Delay(200);
-
-            // Now mark as complete
             var updatedTodo = await _todoService.MarkCompleteAsync(request.Index + 1, request.CompletionNotes);
             return $"Marked todo '{updatedTodo.Description}' as complete.\nNotes: {updatedTodo.CompletionNotes}\nDuration: {updatedTodo.GetDurationDisplay()}";
         }
@@ -89,6 +102,16 @@ public record CreateTodosRequest
     [Description("Array of task descriptions to create as todos")]
     [JsonPropertyName("descriptions")]
     public required string[] Descriptions { get; init; }
+}
+
+/// <summary>
+/// Request model for marking todo as active
+/// </summary>
+public record MarkActiveRequest
+{
+    [Description("Zero-based index of the todo to mark as active")]
+    [JsonPropertyName("index")]
+    public required int Index { get; init; }
 }
 
 /// <summary>

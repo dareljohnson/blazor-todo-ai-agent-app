@@ -37,7 +37,7 @@ public static class TodoItemFactory
             IsCompleted = false,
             ToolUsed = null,
             CompletionNotes = null,
-            StartTime = null,
+            StartTime = DateTime.UtcNow,
             EndTime = null
         };
     }
